@@ -69,11 +69,33 @@ Items have no sets and no other effects. The "How it works" panel in the shop su
 - Tooltips and a rules panel explaining every mechanic.
 - A responsive React interface styled with Tailwind CSS.
 
-The starter does **not** include any automated tests. Vitest is installed and configured; add your own tests as `*.test.ts` files next to the code they test.
+Vitest tests cover B1 economy, leaderboard rules, Express HTTP integration, frontend API communication, submission transitions, and React components. Tests live beside the code as `*.test.js`, `*.test.ts`, or `*.test.tsx`; component tests use React Testing Library and jsdom.
+
+## B7 — Hall of Fame
+
+After a victory or defeat, enter a player name on the result screen and submit the finished run. The Hall of Fame is available at `/hall-of-fame`, including without an active run. Loading, empty, success, and error feedback explain what is happening; failed submissions retain the name for retry.
+
+**Architecture.** `server/leaderboard.js` owns pure validation and ranking plus an isolated in-memory store. `server/app.js::createApp()` receives that store and exposes GET/POST `/api/leaderboard`; `server/index.js` creates one store and starts Express. `src/api.ts` handles HTTP and checks response structures. `GameProvider` creates a UUID when starting a run; `src/game.ts` preserves it and applies pure submission transitions. `ResultPage` coordinates submission, `LeaderboardForm` renders controlled inputs, and `HallOfFamePage` renders the server's sorted entries without sorting again.
+
+**Ranking.** Victories rank before defeats, followed by more wins, fewer rounds, earlier server acceptance timestamps, and ascending normalized run UUIDs when timestamps are equal. These rules are also displayed on the leaderboard.
+
+**Validation.** The server requires a valid UUID, a trimmed name of 1–30 Unicode code points without control characters, and integer statistics. A victory has exactly 5 wins and 1–3 lives; a defeat has 0–4 wins and no lives. Finished runs must satisfy `rounds === wins + (3 - lives)`, with 3–7 rounds. The server derives outcome and timestamp. This checks plausibility rather than proving that a run was played; names render as React text.
+
+**Idempotency and lifetime.** The Map is keyed by normalized run UUID. A new entry returns HTTP 201; an identical normalized retry returns HTTP 200 with the original entry and timestamp; different data for that UUID returns HTTP 409. Pending/successful submissions are blocked in the UI, and late responses cannot update another run. After an uncertain network failure, retry with the same name and run ID: the server may already have accepted it. Restarting Express clears both entries and duplicate records. Browser refresh also loses the current run and submission state; B6 save/resume is not implemented.
+
+### Qualitative goals and trade-offs
+
+| Goal | Decision and trade-off | Evaluation |
+|---|---|---|
+| Reliable retries and consistent results | Stable run IDs, synchronous server deduplication, and guarded transitions prevent duplicate entries and stale updates. Idempotency lasts only for the server process. | Duplicate/conflict HTTP tests, rapid-submit tests, stale-response tests, and manual request replay. |
+| Understandable, accessible feedback | Labelled controlled input, status/alert messages, disabled pending controls, and retry without retyping. Native `maxLength` counts UTF-16 units, so emoji-heavy names can reach the UI limit before the server's code-point limit. | Component tests for labels and states; browser keyboard and error/retry checks. |
+| Simple, testable architecture | Separate rules, HTTP handling, and presentation; inject a fresh store for each API test. Memory storage avoids database setup but has no durability, authentication, or capacity management. | Pure rule tests, isolated HTTP tests using ephemeral ports, component tests, lint, and production build. |
+
+See [docs/API.md](docs/API.md) for request examples and the full endpoint contract. Run `npm test -- --run`, `npm run lint`, and `npm run build` before review. The current ESLint rules primarily cover TypeScript/TSX; backend behavior is covered by JavaScript unit and HTTP tests.
 
 ## Run locally
 
-Requirements: Node.js 20.19+ or 22.12+ and pnpm (npm works as well; replace `pnpm` with `npm run` / `npm install`).
+Requirements: use Node.js 22.22+ within the Node 22 release line to satisfy the installed dependencies' engine requirements, and pnpm (npm works as well; replace `pnpm` with `npm run` / `npm install`). Node 20 can produce engine warnings even when individual checks pass.
 
 ```bash
 pnpm install
@@ -88,13 +110,15 @@ The web app runs at `http://localhost:5174`; its API runs at `http://localhost:4
 | `pnpm server` | Start only the API on port 4200 |
 | `pnpm build` | Type-check and create a production frontend build |
 | `pnpm lint` | Run ESLint over the project |
-| `pnpm test` | Run all Vitest tests once (there are none yet) |
+| `pnpm test` | Run all Vitest tests once |
 | `pnpm preview` | Preview a previously created production build |
 
 ## API
 
 - `GET /api/health`
 - `GET /api/opponents?round=1`
+- `GET /api/leaderboard`
+- `POST /api/leaderboard`
 
 The opponent for each round is fixed. Add `?latency=2500` to change the delay (default 1200 ms, at most 5000 ms) or `?fail=true` to force a failed request. Starting the server with `API_FAIL=true` makes every opponent request fail.
 
@@ -111,8 +135,8 @@ Game rules live in plain TypeScript modules that do not depend on React. Every r
 - `src/battle.ts` turns item lists into fighters and contains the battle simulation (`simulateBattle`).
 - `src/game.ts` contains the phase transitions of a run (`shop → searching → battle → shop … → finished`), the replay steps and the mapping from phase to page.
 - `src/rules.ts` builds the rule explanations and tooltips from the game constants.
-- `src/api.ts` contains the opponent HTTP request.
+- `src/api.ts` contains opponent and leaderboard HTTP requests.
 - `src/state/` holds the game state for all pages (`GameProvider`, `useGame`) and `RequireRoute`, which redirects every page to the one matching the current phase.
 - `src/pages/` contains one component per screen; `src/App.tsx` defines the routes.
 - `src/components/` contains the presentational parts: run header, shop, backpack, item card, rules panel, fight bar, battle view and end-of-run screen.
-- `server/index.js` implements the local API; `server/opponents.js` contains the opponent table.
+- `server/index.js` starts the local API; `server/app.js` creates the Express app, `server/opponents.js` contains the opponent table, and `server/leaderboard.js` contains leaderboard validation, ranking, and storage.

@@ -1,15 +1,43 @@
 import { buildOpponentFighter, buildPlayerFighter, simulateBattle } from './battle';
 import { applyBattleResult, newRun, runOutcome } from './run';
 import { itemIdsOf } from './shop';
-import type { BattleReplay, GameState, Opponent, RunState } from './types';
+import type { BattleReplay, GameState, LeaderboardEntry, Opponent, RunState } from './types';
 
 /**
  * Phase transitions of one run: shop → searching → battle → shop … → finished.
  * Every function is pure, so they can be passed straight to `setState`.
  */
 
-export function newGame(seed: number): GameState {
-  return { phase: 'shop', run: newRun(seed), battle: null, error: null };
+export function newGame(seed: number, runId: string): GameState {
+  return {
+    runId,
+    leaderboardSubmission: { playerName: '', status: 'idle', error: null, entry: null },
+    phase: 'shop', run: newRun(seed), battle: null, error: null,
+  };
+}
+
+export function setLeaderboardName(game: GameState, playerName: string): GameState {
+  const submission = game.leaderboardSubmission;
+  if (game.phase !== 'finished' || submission.status === 'submitting' || submission.status === 'success') return game;
+  return { ...game, leaderboardSubmission: { ...submission, playerName } };
+}
+
+export function beginLeaderboardSubmission(game: GameState, runId: string): GameState {
+  const submission = game.leaderboardSubmission;
+  if (game.runId !== runId || game.phase !== 'finished' || !runOutcome(game.run)
+    || submission.status === 'submitting' || submission.status === 'success') return game;
+  return { ...game, leaderboardSubmission: { ...submission, status: 'submitting', error: null } };
+}
+
+export function leaderboardSubmissionSucceeded(game: GameState, runId: string, entry: LeaderboardEntry): GameState {
+  if (game.runId !== runId || entry.runId !== runId || game.phase !== 'finished'
+    || game.leaderboardSubmission.status !== 'submitting') return game;
+  return { ...game, leaderboardSubmission: { ...game.leaderboardSubmission, status: 'success', error: null, entry: { ...entry } } };
+}
+
+export function leaderboardSubmissionFailed(game: GameState, runId: string, error: string): GameState {
+  if (game.runId !== runId || game.phase !== 'finished' || game.leaderboardSubmission.status !== 'submitting') return game;
+  return { ...game, leaderboardSubmission: { ...game.leaderboardSubmission, status: 'error', error } };
 }
 
 /** Applies a shop/backpack action; only allowed while shopping. */
@@ -67,7 +95,7 @@ export function leaveBattle(game: GameState): GameState {
 }
 
 /** URL paths of the app's screens. */
-export const ROUTES = { start: '/', shop: '/shop', battle: '/battle', result: '/result' } as const;
+export const ROUTES = { start: '/', shop: '/shop', battle: '/battle', result: '/result', hallOfFame: '/hall-of-fame' } as const;
 export type GameRoute = (typeof ROUTES)[keyof typeof ROUTES];
 
 /**

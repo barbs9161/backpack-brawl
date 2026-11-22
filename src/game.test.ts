@@ -6,7 +6,7 @@ import { buyItem, sellItem, rerollShop } from './run';
 describe('B1 - Shopping phase restrictions', () => {
   it('does not allow buying during battle', () => {
     // Create a new game.
-    const game = newGame(123);
+    const game = newGame(123, '00000000-0000-4000-8000-000000000001');
     // Give the player enough gold to buy something.
     const state = {
       ...game,
@@ -25,7 +25,7 @@ describe('B1 - Shopping phase restrictions', () => {
 
 // TEST 2: Trying to sell an item during the battle phase
 it('does not allow selling during battle', () => {
-  const game = newGame(123);
+  const game = newGame(123, '00000000-0000-4000-8000-000000000001');
   const backpack = [...game.run.backpack];
   backpack[0] = {
     uid: 'item-1',
@@ -45,7 +45,7 @@ it('does not allow selling during battle', () => {
 
 // TEST 3: Trying to reroll the shop during the battle phase
 it('does not allow rerolling during battle', () => {
-  const game = newGame(123);
+  const game = newGame(123, '00000000-0000-4000-8000-000000000001');
   const state = {
     ...game,
     phase: 'battle' as const,
