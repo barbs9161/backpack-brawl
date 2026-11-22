@@ -115,10 +115,32 @@ export interface BattleReplay {
 
 /** Everything the UI needs: the run plus where in the round loop we are. */
 export interface GameState {
+  runId: string;
+  leaderboardSubmission: LeaderboardSubmissionState;
   phase: Phase;
   run: RunState;
   /** Set while `phase === "battle"`. */
   battle: BattleReplay | null;
   /** Last opponent-search error, shown in the shop. */
   error: string | null;
+}
+
+export interface LeaderboardSubmission {
+  runId: string;
+  playerName: string;
+  wins: number;
+  lives: number;
+  rounds: number;
+}
+
+export interface LeaderboardEntry extends LeaderboardSubmission {
+  outcome: "victory" | "defeat";
+  createdAt: string;
+}
+
+export interface LeaderboardSubmissionState {
+  playerName: string;
+  status: "idle" | "submitting" | "success" | "error";
+  error: string | null;
+  entry: LeaderboardEntry | null;
 }
