@@ -91,5 +91,5 @@ it('preserves the existing opponent request contract', async () => {
   const opponent = { id: 'test', name: 'Test', icon: '', hp: 25, round: 1, items: [] };
   const fetch = mockResponse(opponent);
   expect(await fetchOpponent(1)).toEqual(opponent);
-  expect(fetch).toHaveBeenCalledWith('/api/opponents?round=1');
+  expect(fetch).toHaveBeenCalledWith('/api/opponents?round=1', { signal: expect.any(AbortSignal) });
 });

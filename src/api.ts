@@ -1,13 +1,35 @@
 import type { LeaderboardEntry, LeaderboardSubmission, Opponent } from "./types";
+import { isOpponent } from "./opponent";
+
+export const OPPONENT_TIMEOUT_MS = 8000;
 
 /** Asks the API for this round's opponent; throws with the server's error text on failure. */
-export async function fetchOpponent(round: number): Promise<Opponent> {
-  const response = await fetch(`/api/opponents?round=${encodeURIComponent(round)}`);
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `Opponent search failed (${response.status})`);
+export async function fetchOpponent(round: number, signal?: AbortSignal): Promise<Opponent> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) controller.abort();
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, OPPONENT_TIMEOUT_MS);
+  try {
+    const response = await fetch(`/api/opponents?round=${encodeURIComponent(round)}`, { signal: controller.signal });
+    const body: unknown = await response.json().catch(() => null);
+    if (controller.signal.aborted) throw new Error('Opponent search cancelled.');
+    if (!response.ok) {
+      throw new Error(isRecord(body) && typeof body.error === 'string' && body.error.trim()
+        ? body.error : `Opponent search failed (${response.status}). Please try again.`);
+    }
+    if (!isOpponent(body) || body.round !== round) throw new Error('Invalid opponent response for this round. Please try again.');
+    return body;
+  } catch (error) {
+    if (timedOut) throw new Error('Opponent search timed out after 8 seconds. Please try again.', { cause: error });
+    if (signal?.aborted) throw new Error('Opponent search cancelled.', { cause: error });
+    if (error instanceof TypeError) throw new Error('Unable to reach the opponent API. Please try again.', { cause: error });
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
   }
-  return response.json() as Promise<Opponent>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

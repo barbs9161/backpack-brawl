@@ -71,6 +71,14 @@ Items have no sets and no other effects. The "How it works" panel in the shop su
 
 Vitest tests cover B1 economy, leaderboard rules, Express HTTP integration, frontend API communication, submission transitions, and React components. Tests live beside the code as `*.test.js`, `*.test.ts`, or `*.test.tsx`; component tests use React Testing Library and jsdom.
 
+## B5 — Resilient matchmaking
+
+Find opponent shows a searching message and locks the fight button and shop actions. One provider-owned request is allowed at a time, including rapid clicks and navigation away from the shop. Every attempt captures a unique search ID, the existing run ID, and the round. Pure transitions admit only the matching active request; accepting a battle consumes that search, so late or duplicate responses cannot reset its replay. Existing replay completion guards apply a result once.
+
+Opponent responses are checked for valid fields, catalog item IDs, and the requested round. HTTP errors, network failures, malformed responses, and an eight-second request timeout return to the same usable shop with readable feedback. Retry is explicit, keeps the same run ID, and creates a new search ID. Failure preserves gold, backpack, round, lives, wins, RNG seed, offers, and leaderboard submission state; it does not grant a free shop roll. Starting a new run or unmounting the provider cancels obsolete work; navigating between pages does not cancel a valid search.
+
+The qualitative goals are single-request reliability, recovery within the request timeout, and understandable retry feedback. Provider ownership adds a small amount of coordination but survives route changes; request identities protect correctness even when cancellation arrives late. No state library, backend contract change, or automatic retry is needed. Controllers and timers are transient and are not part of saved game state; B6 remains separate. Evaluate with deferred-response race tests, fake-timer timeout/replay tests, API response checks, B1/B7 regressions, and browser checks for double clicks, offline/retry, navigation, and new-run cancellation.
+
 ## B7 — Hall of Fame
 
 After a victory or defeat, enter a player name on the result screen and submit the finished run. The Hall of Fame is available at `/hall-of-fame`, including without an active run. Loading, empty, success, and error feedback explain what is happening; failed submissions retain the name for retry.

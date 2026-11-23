@@ -1,7 +1,8 @@
 import { buildOpponentFighter, buildPlayerFighter, simulateBattle } from './battle';
 import { applyBattleResult, newRun, runOutcome } from './run';
 import { itemIdsOf } from './shop';
-import type { BattleReplay, GameState, LeaderboardEntry, Opponent, RunState } from './types';
+import type { ActiveSearch, BattleReplay, GameState, LeaderboardEntry, Opponent, RunState } from './types';
+import { isOpponent } from './opponent';
 
 /**
  * Phase transitions of one run: shop → searching → battle → shop … → finished.
@@ -11,6 +12,7 @@ import type { BattleReplay, GameState, LeaderboardEntry, Opponent, RunState } fr
 export function newGame(seed: number, runId: string): GameState {
   return {
     runId,
+    activeSearch: null,
     leaderboardSubmission: { playerName: '', status: 'idle', error: null, entry: null },
     phase: 'shop', run: newRun(seed), battle: null, error: null,
   };
@@ -51,25 +53,37 @@ export function updateRun(game: GameState, action: (run: RunState) => RunState):
 
 /** Why the player can't look for an opponent right now, or `null` if they can. */
 export function fightBlocker(game: GameState): string | null {
+  if (game.phase !== 'shop') return game.phase === 'searching' ? 'Search already in progress' : 'Only available while shopping';
   if (itemIdsOf(game.run.backpack).length === 0) return 'Buy at least one item first';
   return null;
 }
 
-export function startSearch(game: GameState): GameState {
-  if (fightBlocker(game) !== null) return game;
-  return { ...game, phase: 'searching', error: null };
+export function startSearch(game: GameState, search: ActiveSearch): GameState {
+  if (fightBlocker(game) !== null || search.runId !== game.runId || search.round !== game.run.round) return game;
+  return { ...game, phase: 'searching', activeSearch: { ...search }, error: null };
 }
 
-export function searchFailed(game: GameState, error: string): GameState {
-  return { ...game, error };
+function matchesSearch(game: GameState, search: ActiveSearch): boolean {
+  return game.phase === 'searching' && game.runId === search.runId && game.run.round === search.round
+    && game.activeSearch?.searchId === search.searchId && game.activeSearch.runId === search.runId
+    && game.activeSearch.round === search.round;
+}
+
+export function searchFailed(game: GameState, search: ActiveSearch, error: string): GameState {
+  if (!matchesSearch(game, search)) return game;
+  return { ...game, phase: 'shop', activeSearch: null, error };
 }
 
 /** Simulates the battle against `opponent` and starts its replay at the first frame. */
-export function startBattle(game: GameState, opponent: Opponent): GameState {
+export function startBattle(game: GameState, search: ActiveSearch, opponent: Opponent): GameState {
+  if (!matchesSearch(game, search)) return game;
+  if (!isOpponent(opponent) || opponent.round !== search.round) {
+    return searchFailed(game, search, 'Invalid opponent response for this round. Please try again.');
+  }
   const player = buildPlayerFighter(game.run.backpack);
   const enemy = buildOpponentFighter(opponent);
   const result = simulateBattle(player, enemy);
-  return { ...game, phase: 'battle', battle: { opponent, player, enemy, result, frame: 0 } };
+  return { ...game, phase: 'battle', activeSearch: null, battle: { opponent, player, enemy, result, frame: 0 } };
 }
 
 export const isReplayDone = (battle: BattleReplay) =>

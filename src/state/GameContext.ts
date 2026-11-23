@@ -6,6 +6,7 @@ export interface GameContextValue {
   game: GameState | null;
   /** Throws away the current run (if any) and starts a fresh one. */
   startNewRun: () => void;
+  findOpponent: () => Promise<void>;
   /** Applies a pure transition from game.ts to the current run; ignored without a run. */
   update: (transition: (game: GameState) => GameState) => void;
 }
