@@ -15,7 +15,7 @@ export function FightBar({ phase, blocker, error, onFight }: FightBarProps) {
       <div aria-live="polite">
         {error ? (
           <p role="alert" className="text-life">
-            ⚠️ {error} Try again.
+            ⚠️ {error}
           </p>
         ) : searching ? (
           <p className="animate-pulse font-bold text-gold">🔭 Searching the arena for a challenger…</p>
@@ -26,7 +26,7 @@ export function FightBar({ phase, blocker, error, onFight }: FightBarProps) {
       <button
         type="button"
         onClick={onFight}
-        disabled={blocker !== null}
+        disabled={phase !== "shop" || blocker !== null}
         title={blocker ?? undefined}
         className="shrink-0 rounded-md bg-life px-4 py-2 font-display font-bold text-parchment hover:brightness-110 disabled:bg-panel-edge disabled:text-muted"
       >

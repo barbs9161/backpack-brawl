@@ -21,9 +21,10 @@ describe('B7 run identity and submission transitions', () => {
     const submission = game.leaderboardSubmission;
     game = updateRun(game, (run) => buyItem(run, 0));
     for (let round = 1; round <= 3; round++) {
-      game = startSearch(game);
+      const search = { searchId: `search-${round}`, runId, round };
+      game = startSearch(game, search);
       expect(game.runId).toBe(runId);
-      game = startBattle(game, { id: 'test', name: 'Test', icon: '', hp: 1000, round, items: ['iron-cleaver'] });
+      game = startBattle(game, search, { id: 'test', name: 'Test', icon: '', hp: 1000, round, items: ['iron-cleaver'] });
       expect(game.runId).toBe(runId);
       game = skipReplay(game);
       game = leaveBattle(game);

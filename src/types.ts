@@ -115,6 +115,7 @@ export interface BattleReplay {
 
 /** Everything the UI needs: the run plus where in the round loop we are. */
 export interface GameState {
+  activeSearch: ActiveSearch | null;
   runId: string;
   leaderboardSubmission: LeaderboardSubmissionState;
   phase: Phase;
@@ -123,6 +124,12 @@ export interface GameState {
   battle: BattleReplay | null;
   /** Last opponent-search error, shown in the shop. */
   error: string | null;
+}
+
+export interface ActiveSearch {
+  searchId: string;
+  runId: string;
+  round: number;
 }
 
 export interface LeaderboardSubmission {

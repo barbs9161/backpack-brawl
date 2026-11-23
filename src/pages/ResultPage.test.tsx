@@ -24,7 +24,7 @@ function mount(initial = finished()) {
   function Harness() {
     const [game, setGame] = useState(initial);
     current = game;
-    return <GameContext value={{ game, update: (transition) => setGame(transition), startNewRun: () => {
+    return <GameContext value={{ game, findOpponent: async () => {}, update: (transition) => setGame(transition), startNewRun: () => {
       restart();
       setGame(newGame(123, otherId));
     } }}><ResultPage /></GameContext>;
