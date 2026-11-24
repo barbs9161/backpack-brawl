@@ -50,6 +50,43 @@ export function sellBlocker(state: RunState, slotIndex: number): string | null {
   return null;
 }
 
+/** Why an item cannot be moved, or null if the move is allowed. */
+export function moveBlocker(state: RunState, fromIndex: number, toIndex: number): string | null {
+  if (!Number.isInteger(fromIndex) || fromIndex < 0 || fromIndex >= state.backpack.length) {
+    return 'Invalid source slot';
+  }
+
+  if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex >= state.backpack.length) {
+    return 'Invalid destination slot';
+  }
+
+  if (state.backpack[fromIndex] === null) {
+    return 'Source slot is empty';
+  }
+
+  if (fromIndex === toIndex) {
+    return 'Item is already in this slot';
+  }
+
+  return null;
+}
+
+/** Moves or swaps backpack items; unchanged state if not allowed. */
+export function moveItem(state: RunState, fromIndex: number, toIndex: number): RunState {
+  if (moveBlocker(state, fromIndex, toIndex) !== null) return state;
+
+  const backpack = [...state.backpack];
+
+  const sourceItem = backpack[fromIndex];
+  backpack[fromIndex] = backpack[toIndex];
+  backpack[toIndex] = sourceItem;
+
+  return {
+    ...state,
+    backpack,
+  };
+}
+
 /** Sells a backpack item for half its price, rounded down. */
 export function sellItem(state: RunState, slotIndex: number): RunState {
   if (sellBlocker(state, slotIndex) !== null) return state; // If the item can't be sold, return the unchanged state.
@@ -101,7 +138,7 @@ export function rerollBlocker(state: RunState): string | null {
 /** Rerolls shop offers for 1 gold; leaves state unchanged if not allowed. */
 export function rerollShop(state: RunState): RunState {
   if (rerollBlocker(state) !== null) return state;
-  const roll = rollShop(state.seed);
+  const roll = rollShop(state.seed); // Generates new shop offers and a new seed for the next roll, ensuring that the shop offers are randomized based on the current seed.
   return {
     ...state,
     gold: state.gold - 1,
