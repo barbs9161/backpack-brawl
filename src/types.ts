@@ -1,6 +1,8 @@
 export interface ItemEffects {
   damage?: number;
   block?: number;
+  poison?: number;
+  heal?: number;
 }
 
 export interface ItemDef {
@@ -25,7 +27,7 @@ export type Backpack = (ItemInstance | null)[];
 /** Shop offers by item id; `null` marks an offer that was already bought. */
 export type ShopOffers = (string | null)[];
 
-export type Phase = "shop" | "searching" | "battle" | "finished";
+export type Phase = 'shop' | 'searching' | 'battle' | 'finished';
 
 export interface RunState {
   round: number;
@@ -49,15 +51,16 @@ export interface Opponent {
   items: string[];
 }
 
-export type Side = "player" | "opponent";
+export type Side = 'player' | 'opponent';
 
 export interface FighterSnapshot {
   hp: number;
   maxHp: number;
   block: number;
+  poison: number;
 }
 
-export type BattleEventKind = "damage" | "block";
+export type BattleEventKind = 'damage' | 'block' | 'poison' | 'poisonTick' | 'heal';
 
 export interface BattleEvent {
   tick: number;
@@ -68,7 +71,7 @@ export interface BattleEvent {
   kind: BattleEventKind;
   amount: number;
   /** Item that triggered the event. */
-  itemId: string;
+  itemId?: string;
   message: string;
 }
 
@@ -82,7 +85,7 @@ export interface BattleFrame {
 
 export interface BattleResult {
   winner: Side;
-  reason: "knockout" | "timeout";
+  reason: 'knockout' | 'timeout';
   frames: BattleFrame[];
   events: BattleEvent[];
 }
@@ -141,13 +144,13 @@ export interface LeaderboardSubmission {
 }
 
 export interface LeaderboardEntry extends LeaderboardSubmission {
-  outcome: "victory" | "defeat";
+  outcome: 'victory' | 'defeat';
   createdAt: string;
 }
 
 export interface LeaderboardSubmissionState {
   playerName: string;
-  status: "idle" | "submitting" | "success" | "error";
+  status: 'idle' | 'submitting' | 'success' | 'error';
   error: string | null;
   entry: LeaderboardEntry | null;
 }

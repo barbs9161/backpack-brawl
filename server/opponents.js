@@ -4,19 +4,68 @@
  * Rounds past the table reuse the last opponent with more HP (see `opponentForRound`).
  */
 export const OPPONENTS = [
-  { id: "mossback-hermit", name: "Mossback Hermit", icon: "🐢", hp: 25, items: ["chipped-dagger", "pot-lid"] },
-  { id: "grave-tinker", name: "Grave Tinker", icon: "🦴", hp: 36, items: ["hunting-bow", "chipped-dagger", "oak-buckler"] },
-  { id: "tollgate-ogre", name: "Tollgate Ogre", icon: "👹", hp: 44, items: ["hunting-bow", "chipped-dagger", "chipped-dagger", "oak-buckler"] },
-  { id: "rusted-knight", name: "Rusted Knight", icon: "🪖", hp: 46, items: ["iron-cleaver", "hunting-bow", "chipped-dagger", "oak-buckler", "pot-lid"] },
-  { id: "pit-gladiator", name: "Pit Gladiator", icon: "🦁", hp: 50, items: ["iron-cleaver", "hunting-bow", "chipped-dagger", "oak-buckler", "pot-lid"] },
-  { id: "ash-golem", name: "Ash Golem", icon: "🗿", hp: 56, items: ["iron-cleaver", "hunting-bow", "spiked-shield", "chipped-dagger", "oak-buckler"] },
-  { id: "hollow-king", name: "Hollow King", icon: "👑", hp: 64, items: ["iron-cleaver", "hunting-bow", "hunting-bow", "spiked-shield", "oak-buckler", "pot-lid"] },
+  {
+    id: 'mossback-hermit',
+    name: 'Mossback Hermit',
+    icon: '🐢',
+    hp: 25,
+    items: ['chipped-dagger', 'pot-lid'],
+  },
+  {
+    id: 'grave-tinker',
+    name: 'Grave Tinker',
+    icon: '🦴',
+    hp: 36,
+    items: ['hunting-bow', 'poisoned-dagger', 'oak-buckler'],
+  },
+  {
+    id: 'tollgate-ogre',
+    name: 'Tollgate Ogre',
+    icon: '👹',
+    hp: 44,
+    items: ['hunting-bow', 'chipped-dagger', 'healing-herb', 'oak-buckler'],
+  },
+  {
+    id: 'rusted-knight',
+    name: 'Rusted Knight',
+    icon: '🪖',
+    hp: 46,
+    items: ['iron-cleaver', 'hunting-bow', 'venom-flask', 'oak-buckler', 'pot-lid'],
+  },
+  {
+    id: 'pit-gladiator',
+    name: 'Pit Gladiator',
+    icon: '🦁',
+    hp: 50,
+    items: ['iron-cleaver', 'hunting-bow', 'chipped-dagger', 'oak-buckler', 'healing-potion'],
+  },
+  {
+    id: 'ash-golem',
+    name: 'Ash Golem',
+    icon: '🗿',
+    hp: 56,
+    items: ['iron-cleaver', 'hunting-bow', 'spiked-shield', 'serpent-fang', 'oak-buckler'],
+  },
+  {
+    id: 'hollow-king',
+    name: 'Hollow King',
+    icon: '👑',
+    hp: 64,
+    items: [
+      'iron-cleaver',
+      'hunting-bow',
+      'venom-flask',
+      'spiked-shield',
+      'oak-buckler',
+      'life-crystal',
+    ],
+  },
 ];
 
 /** Extra HP per round past the end of the table. */
 export const HP_PER_EXTRA_ROUND = 6;
 /** Item added per round past the end of the table (only while there is room, see `MAX_ITEMS`). */
-export const EXTRA_ITEM = "chipped-dagger";
+export const EXTRA_ITEM = 'chipped-dagger';
 /** Opponents never carry more items than the player's backpack can hold (2×3). */
 export const MAX_ITEMS = 6;
 
@@ -31,7 +80,7 @@ export function opponentForRound(round) {
 
 /** Parses `?round=`; returns a positive integer or `null` if invalid. */
 export function parseRound(value) {
-  if (typeof value !== "string" || !/^\d+$/.test(value)) return null;
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) return null;
   const round = Number(value);
   return Number.isSafeInteger(round) && round >= 1 ? round : null;
 }

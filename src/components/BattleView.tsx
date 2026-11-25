@@ -1,7 +1,14 @@
-import { TICK_SECONDS, MAX_TICKS } from "../battle";
-import { getItem } from "../items";
-import { STATUS_HELP } from "../rules";
-import type { BattleEvent, BattleEventKind, BattleReplay, Fighter, FighterSnapshot, Side } from "../types";
+import { TICK_SECONDS, MAX_TICKS } from '../battle';
+import { describeEffects, getItem } from '../items';
+import { EFFECT_HELP, STATUS_HELP } from '../rules';
+import type {
+  BattleEvent,
+  BattleEventKind,
+  BattleReplay,
+  Fighter,
+  FighterSnapshot,
+  Side,
+} from '../types';
 
 interface BattleViewProps {
   battle: BattleReplay;
@@ -19,7 +26,7 @@ export function BattleView({ battle, done, continueLabel, onSkip, onContinue }: 
     .slice(1, battle.frame + 1)
     .flatMap((f) => f.events)
     .reverse();
-  const won = result.winner === "player";
+  const won = result.winner === 'player';
 
   return (
     <section className="flex flex-col gap-4 rounded-lg border border-panel-edge bg-panel p-4">
@@ -27,27 +34,36 @@ export function BattleView({ battle, done, continueLabel, onSkip, onContinue }: 
         <h2 className="font-display text-xl font-bold">
           ⚔️ Round {opponent.round} vs {opponent.icon} {opponent.name}
         </h2>
-        <span className="cursor-help font-mono text-sm text-muted" aria-label="Battle time" title={STATUS_HELP.timer}>
+        <span
+          className="cursor-help font-mono text-sm text-muted"
+          aria-label="Battle time"
+          title={STATUS_HELP.timer}
+        >
           ⏱ {(frame.tick * TICK_SECONDS).toFixed(1)} s / {MAX_TICKS * TICK_SECONDS} s
         </span>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <FighterPanel side="player" icon="🧝" fighter={battle.player} snapshot={frame.player} />
-        <FighterPanel side="opponent" icon={opponent.icon} fighter={battle.enemy} snapshot={frame.opponent} />
+        <FighterPanel
+          side="opponent"
+          icon={opponent.icon}
+          fighter={battle.enemy}
+          snapshot={frame.opponent}
+        />
       </div>
 
       {done ? (
         <div
           role="status"
-          className={`flex flex-col items-center gap-3 rounded-md border-2 p-4 text-center ${won ? "border-gold bg-gold/10" : "border-life bg-life/10"}`}
+          className={`flex flex-col items-center gap-3 rounded-md border-2 p-4 text-center ${won ? 'border-gold bg-gold/10' : 'border-life bg-life/10'}`}
         >
-          <p className="font-display text-2xl font-bold">{won ? "🏆 Victory!" : "💀 Defeat"}</p>
+          <p className="font-display text-2xl font-bold">{won ? '🏆 Victory!' : '💀 Defeat'}</p>
           <p className="text-sm text-muted">
-            {result.reason === "knockout"
-              ? `${won ? opponent.name : "Your hero"} was knocked out.`
-              : `Time ran out — ${won ? "you" : opponent.name} kept the higher share of HP.`}{" "}
-            {won ? "+1 win." : "−1 life."}
+            {result.reason === 'knockout'
+              ? `${won ? opponent.name : 'Your hero'} was knocked out.`
+              : `Time ran out — ${won ? 'you' : opponent.name} kept the higher share of HP.`}{' '}
+            {won ? '+1 win.' : '−1 life.'}
           </p>
           <button
             type="button"
@@ -60,7 +76,11 @@ export function BattleView({ battle, done, continueLabel, onSkip, onContinue }: 
         </div>
       ) : (
         <div className="flex justify-end">
-          <button type="button" onClick={onSkip} className="rounded-md border border-panel-edge px-4 py-1.5 hover:bg-panel-edge/40">
+          <button
+            type="button"
+            onClick={onSkip}
+            className="rounded-md border border-panel-edge px-4 py-1.5 hover:bg-panel-edge/40"
+          >
             ⏭ Skip
           </button>
         </div>
@@ -69,7 +89,9 @@ export function BattleView({ battle, done, continueLabel, onSkip, onContinue }: 
       <section>
         <h3 className="mb-2 font-bold">📜 Combat log</h3>
         <div className="rounded-md bg-ink/50 p-2 text-sm">
-          <div className={`${LOG_ROW} border-b border-panel-edge pb-1 text-xs uppercase tracking-wider text-muted`}>
+          <div
+            className={`${LOG_ROW} border-b border-panel-edge pb-1 text-xs uppercase tracking-wider text-muted`}
+          >
             <span>🧝 {battle.player.name}</span>
             <span>Time</span>
             <span className="text-right">
@@ -77,7 +99,9 @@ export function BattleView({ battle, done, continueLabel, onSkip, onContinue }: 
             </span>
           </div>
           <ol className="flex max-h-64 flex-col gap-1 overflow-y-auto pt-1" aria-live="off">
-            {log.length === 0 && <li className="text-center text-muted">The fighters size each other up…</li>}
+            {log.length === 0 && (
+              <li className="text-center text-muted">The fighters size each other up…</li>
+            )}
             {log.map((event, index) => (
               <LogLine key={log.length - index} event={event} />
             ))}
@@ -89,18 +113,28 @@ export function BattleView({ battle, done, continueLabel, onSkip, onContinue }: 
 }
 
 /** Hero actions | time | enemy actions. */
-const LOG_ROW = "grid grid-cols-[1fr_auto_1fr] items-start gap-2";
+const LOG_ROW = 'grid grid-cols-[1fr_auto_1fr] items-start gap-2';
 
-/** Text colour per event: damage red, everything else neutral. */
+/** Text colour per battle event kind. */
 const EVENT_COLOUR: Partial<Record<BattleEventKind, string>> = {
-  damage: "text-life",
+  damage: 'text-life',
+  poison: 'text-purple-400',
+  poisonTick: 'text-purple-400',
+  heal: 'text-green-400',
 };
 
 function LogLine({ event }: { event: BattleEvent }) {
-  const icon = getItem(event.itemId).icon;
-  const byPlayer = event.source === "player";
+  const icon = event.itemId
+    ? getItem(event.itemId).icon
+    : event.kind === 'poisonTick'
+      ? '☠️'
+      : '⚔️';
+
+  const byPlayer = event.source === 'player';
   const text = (
-    <span className={`flex gap-1.5 ${byPlayer ? "" : "flex-row-reverse text-right"} ${EVENT_COLOUR[event.kind] ?? ""}`}>
+    <span
+      className={`flex gap-1.5 ${byPlayer ? '' : 'flex-row-reverse text-right'} ${EVENT_COLOUR[event.kind] ?? ''}`}
+    >
       <span aria-hidden>{icon}</span>
       <span>{event.message}</span>
     </span>
@@ -109,7 +143,9 @@ function LogLine({ event }: { event: BattleEvent }) {
   return (
     <li className={LOG_ROW}>
       {byPlayer ? text : <span />}
-      <span className="font-mono text-xs leading-5 text-muted">{(event.tick * TICK_SECONDS).toFixed(1)}s</span>
+      <span className="font-mono text-xs leading-5 text-muted">
+        {(event.tick * TICK_SECONDS).toFixed(1)}s
+      </span>
       {byPlayer ? <span /> : text}
     </li>
   );
@@ -123,27 +159,58 @@ interface FighterPanelProps {
 }
 
 function FighterPanel({ side, icon, fighter, snapshot }: FighterPanelProps) {
-  const { hp, maxHp, block } = snapshot;
+  const { hp, maxHp, block, poison } = snapshot;
   const knockedOut = hp <= 0;
 
   return (
     <article
-      aria-label={side === "player" ? "Your hero" : fighter.name}
-      className={`flex flex-col gap-2 rounded-md border-2 p-3 ${side === "player" ? "border-gold/60" : "border-life/60"} ${knockedOut ? "opacity-50" : ""}`}
+      aria-label={side === 'player' ? 'Your hero' : fighter.name}
+      className={`flex flex-col gap-2 rounded-md border-2 p-3 ${side === 'player' ? 'border-gold/60' : 'border-life/60'} ${knockedOut ? 'opacity-50' : ''}`}
     >
       <h3 className="flex items-center gap-2 font-display text-lg font-bold">
         <span className="text-3xl" aria-hidden>
-          {knockedOut ? "💀" : icon}
+          {knockedOut ? '💀' : icon}
         </span>
         {fighter.name}
       </h3>
 
-      <Bar label="HP" value={hp} max={maxHp} text={`${hp} / ${maxHp}`} colour="bg-life" help={STATUS_HELP.hp} />
-      <Bar label="Block" value={block} max={maxHp} text={`🛡️ ${block}`} colour="bg-block" help={STATUS_HELP.block} />
+      <Bar
+        label="HP"
+        value={hp}
+        max={maxHp}
+        text={`${hp} / ${maxHp}`}
+        colour="bg-life"
+        help={STATUS_HELP.hp}
+      />
+      <Bar
+        label="Block"
+        value={block}
+        max={maxHp}
+        text={`🛡️ ${block}`}
+        colour="bg-block"
+        help={STATUS_HELP.block}
+      />
+      <div
+        className="flex cursor-help justify-between text-xs text-purple-400"
+        title={STATUS_HELP.poison}
+      >
+        <span>Poison</span>
+        <span className="font-mono">☠️ {poison}</span>
+      </div>
 
       <ul className="flex flex-wrap gap-1" aria-label="Items">
         {fighter.items.map((item, index) => (
-          <li key={index} title={item.name} className="rounded bg-ink/50 px-1.5 py-0.5 text-xl">
+          <li
+            key={index}
+            title={[
+              item.name,
+              ...describeEffects(item.effects).map(
+                ({ effect, label }) => `${label}\n${EFFECT_HELP[effect]}`,
+              ),
+              `⏱️ every ${item.cooldown * TICK_SECONDS}s`,
+            ].join('\n')}
+            className="cursor-help rounded bg-ink/50 px-1.5 py-0.5 text-xl"
+          >
             {item.icon}
           </li>
         ))}
@@ -152,7 +219,21 @@ function FighterPanel({ side, icon, fighter, snapshot }: FighterPanelProps) {
   );
 }
 
-function Bar({ label, value, max, text, colour, help }: { label: string; value: number; max: number; text: string; colour: string; help: string }) {
+function Bar({
+  label,
+  value,
+  max,
+  text,
+  colour,
+  help,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  text: string;
+  colour: string;
+  help: string;
+}) {
   const percent = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (
     <div title={help} className="cursor-help">
@@ -160,8 +241,18 @@ function Bar({ label, value, max, text, colour, help }: { label: string; value: 
         <span>{label}</span>
         <span className="font-mono">{text}</span>
       </div>
-      <div className="h-3 overflow-hidden rounded-full bg-ink" role="meter" aria-label={label} aria-valuenow={value} aria-valuemin={0} aria-valuemax={max}>
-        <div className={`h-full ${colour} transition-[width] duration-200`} style={{ width: `${percent}%` }} />
+      <div
+        className="h-3 overflow-hidden rounded-full bg-ink"
+        role="meter"
+        aria-label={label}
+        aria-valuenow={value}
+        aria-valuemin={0}
+        aria-valuemax={max}
+      >
+        <div
+          className={`h-full ${colour} transition-[width] duration-200`}
+          style={{ width: `${percent}%` }}
+        />
       </div>
     </div>
   );
