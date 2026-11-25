@@ -2,12 +2,13 @@ import { TICK_SECONDS } from '../battle';
 import { describeEffects, getItem } from '../items';
 import { BACKPACK_COLS } from '../shop';
 import type { Backpack as BackpackSlots, ItemDef } from '../types';
+import { EFFECT_HELP } from '../rules';
 
 /** Hover text for a backpack slot: name, effects and cooldown. */
 const tooltip = (item: ItemDef) =>
   [
     item.name,
-    ...describeEffects(item.effects).map(({ label }) => label),
+    ...describeEffects(item.effects).map(({ effect, label }) => `${label}\n${EFFECT_HELP[effect]}`),
     `⏱️ every ${item.cooldown * TICK_SECONDS}s`,
   ].join('\n');
 
