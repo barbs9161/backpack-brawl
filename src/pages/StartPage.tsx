@@ -1,15 +1,14 @@
 import { useNavigate } from "react-router";
-import { ROUTES } from "../game";
+import { ROUTES, routeForGame } from "../game";
 import { START_GOLD, START_LIVES, WINS_TO_VICTORY } from "../run";
 import { useGame } from "../state/GameContext";
 
 export function StartPage() {
-  const { startNewRun } = useGame();
+  const { game, startNewRun, persistence } = useGame();
   const navigate = useNavigate();
 
   function handleNewRun() {
-    startNewRun();
-    navigate(ROUTES.shop);
+    if (startNewRun()) navigate(ROUTES.shop);
   }
 
   return (
@@ -25,7 +24,11 @@ export function StartPage() {
           🏆 Reach {WINS_TO_VICTORY} wins before you lose all {START_LIVES} lives. You start with {START_GOLD} 🪙.
         </li>
       </ul>
-      <button type="button" onClick={handleNewRun} autoFocus className="rounded-md bg-gold px-5 py-2 font-display font-bold text-ink hover:brightness-110">
+      {game && <button type="button" disabled={persistence.blocked} onClick={() => navigate(routeForGame(game))}
+        className="rounded-md bg-gold px-5 py-2 font-display font-bold text-ink hover:brightness-110 disabled:opacity-60">Continue</button>}
+      {game && <p id="replace-save" className="text-sm text-muted">Starting a new run replaces your saved run, including any unsubmitted result.</p>}
+      <button type="button" onClick={handleNewRun} disabled={persistence.blocked} aria-describedby={game ? 'replace-save' : undefined}
+        autoFocus={!game} className="rounded-md bg-gold px-5 py-2 font-display font-bold text-ink hover:brightness-110 disabled:opacity-60">
         🎒 New run
       </button>
     </section>

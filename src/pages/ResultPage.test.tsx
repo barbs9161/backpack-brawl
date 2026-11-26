@@ -24,9 +24,19 @@ function mount(initial = finished()) {
   function Harness() {
     const [game, setGame] = useState(initial);
     current = game;
-    return <GameContext value={{ game, findOpponent: async () => {}, update: (transition) => setGame(transition), startNewRun: () => {
+    return <GameContext value={{ game, findOpponent: async () => {},
+      persistence: { loadStatus: 'missing', notices: [], error: null, blocked: false, interruptedSubmission: null },
+      retrySave: () => true,
+      update: (transition) => {
+        const next = transition(current);
+        const changed = next !== current;
+        current = next;
+        setGame(next);
+        return changed;
+      }, startNewRun: () => {
       restart();
       setGame(newGame(123, otherId));
+      return true;
     } }}><ResultPage /></GameContext>;
   }
   render(<MemoryRouter><Harness /></MemoryRouter>);

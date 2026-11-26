@@ -5,13 +5,16 @@ interface LeaderboardFormProps {
   playerName: string;
   status: LeaderboardSubmissionState["status"];
   error: string | null;
+  uncertain?: boolean;
+  blocked?: boolean;
   onNameChange: (name: string) => void;
   onSubmit: () => void;
 }
 
-export function LeaderboardForm({ playerName, status, error, onNameChange, onSubmit }: LeaderboardFormProps) {
+export function LeaderboardForm({ playerName, status, error, uncertain = false, blocked = false, onNameChange, onSubmit }: LeaderboardFormProps) {
   const nameId = useId();
-  const locked = status === "submitting" || status === "success";
+  const locked = blocked || status === "submitting" || status === "success";
+  const recoveryId = `${nameId}-recovery`;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -26,12 +29,14 @@ export function LeaderboardForm({ playerName, status, error, onNameChange, onSub
         id={nameId}
         name="playerName"
         value={playerName}
-        onChange={(event) => onNameChange(event.target.value)}
+        onChange={(event) => { if (!locked && !uncertain) onNameChange(event.target.value); }}
         required
         maxLength={30}
-        disabled={locked}
+        disabled={locked || uncertain}
+        aria-describedby={uncertain ? recoveryId : undefined}
         className="rounded-md border border-panel-edge bg-ink p-2 disabled:opacity-60"
       />
+      {uncertain && <p id={recoveryId} role="status" className="text-muted">The server may already have accepted this run. Retry uses the original name and run details to prevent a duplicate entry. The name is locked until the submission is resolved.</p>}
       <button type="submit" disabled={locked || !playerName.trim()} className="rounded-md bg-gold px-4 py-2 font-bold text-ink hover:brightness-110 disabled:bg-panel-edge disabled:text-muted">
         {status === "submitting" ? "Submitting…" : status === "success" ? "Run submitted" : status === "error" ? "Retry submission" : "Submit run"}
       </button>

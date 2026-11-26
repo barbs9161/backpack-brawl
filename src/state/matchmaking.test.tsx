@@ -5,7 +5,8 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
 import { fetchOpponent } from '../api';
 import { updateRun } from '../game';
-import { buyItem, sellItem } from '../run';
+import { buyItem, moveItem, sellItem } from '../run';
+import { SAVE_KEY } from '../persistence';
 import { ShopPage } from '../pages/ShopPage';
 import type { Opponent } from '../types';
 import { useGame, type GameContextValue } from './GameContext';
@@ -42,7 +43,7 @@ function ShopWhenActive() {
   return game ? <ShopPage /> : null;
 }
 
-afterEach(() => { cleanup(); vi.resetAllMocks(); });
+afterEach(() => { cleanup(); localStorage.removeItem(SAVE_KEY); vi.resetAllMocks(); });
 
 it('searches once under rapid calls and StrictMode, shows loading, and installs one battle', async () => {
   const request = deferred();
@@ -209,12 +210,14 @@ it('composes batched updates without losing state or rolling back the admission 
   const app = mount();
   const before = app.context().game!;
   act(() => {
-    app.context().update((game) => ({ ...game, run: { ...game.run, gold: game.run.gold + 1 } }));
-    app.context().update((game) => ({ ...game, run: { ...game.run, gold: game.run.gold + 2 } }));
+    app.context().update((game) => updateRun(game, (run) => moveItem(run, 0, 1)));
+    app.context().update((game) => updateRun(game, (run) => moveItem(run, 1, 2)));
   });
-  expect(app.context().game!.run.gold).toBe(before.run.gold + 3);
+  expect(app.context().game!.run.backpack[2]).toEqual(before.run.backpack[0]);
+  expect(app.context().game!.run.backpack[0]).toBeNull();
   act(() => { void app.context().findOpponent(); });
   expect(fetchOpponent).toHaveBeenCalledTimes(1);
   await act(async () => request.resolve(opponent));
-  expect(app.context().game!.run.gold).toBe(before.run.gold + 3);
+  expect(app.context().game!.run.gold).toBe(before.run.gold);
+  expect(app.context().game!.run.backpack[2]).toEqual(before.run.backpack[0]);
 });

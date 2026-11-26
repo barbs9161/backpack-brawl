@@ -58,7 +58,9 @@ async function readLeaderboardResponse(response: Response): Promise<unknown> {
   if (!response.ok) {
     const message = isRecord(body) && typeof body.error === "string" && body.error.trim()
       ? body.error : `Leaderboard request failed (${response.status})`;
-    throw new Error(message);
+    // Preserve HTTP status so a definite validation rejection can be corrected;
+    // network/5xx/invalid-success outcomes may already have stored the entry.
+    throw Object.assign(new Error(message), { status: response.status });
   }
   return body;
 }

@@ -12,6 +12,10 @@ const mockResponse = (body: unknown, status = 200) => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('leaderboard API', () => {
+  it('preserves HTTP status without changing the readable error message', async () => {
+    mockResponse({ error: 'Invalid player name' }, 400);
+    await expect(submitLeaderboardRun(submission)).rejects.toMatchObject({ message: 'Invalid player name', status: 400 });
+  });
   it.each([200, 201])('posts JSON and accepts success %i', async (status) => {
     const fetch = mockResponse({ entry }, status);
     expect(await submitLeaderboardRun(submission)).toEqual(entry);

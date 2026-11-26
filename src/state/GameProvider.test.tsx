@@ -4,9 +4,10 @@ import * as gameModule from '../game';
 import { useGame } from './GameContext';
 import { GameProvider } from './GameProvider';
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it('generates a fresh UUID only when startNewRun is invoked', () => {
+  vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn() });
   const firstId = '00000000-0000-4000-8000-000000000001';
   const secondId = '00000000-0000-4000-8000-000000000002';
   const uuid = vi.spyOn(crypto, 'randomUUID').mockReturnValueOnce(firstId).mockReturnValueOnce(secondId);
