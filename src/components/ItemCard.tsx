@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
-import { TICK_SECONDS } from "../battle";
-import { describeEffects } from "../items";
-import { COOLDOWN_HELP, EFFECT_HELP } from "../rules";
-import type { ItemDef } from "../types";
+import type { ReactNode } from 'react';
+import { TICK_SECONDS } from '../battle';
+import { describeEffects } from '../items';
+import { COOLDOWN_HELP, EFFECT_HELP, SET_HELP } from '../rules';
+import { ITEM_SETS } from '../sets';
+import type { ItemDef } from '../types';
 
 interface ItemCardProps {
   item: ItemDef;
@@ -11,6 +12,7 @@ interface ItemCardProps {
 }
 
 export function ItemCard({ item, children }: ItemCardProps) {
+  const itemSet = item.setId ? ITEM_SETS[item.setId] : undefined;
   return (
     <article className="flex flex-col gap-2 rounded-lg border-2 border-gold/40 bg-ink/40 p-3">
       <div className="flex items-start gap-3">
@@ -19,6 +21,18 @@ export function ItemCard({ item, children }: ItemCardProps) {
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-display font-bold">{item.name}</h3>
+          {itemSet && (
+            <span
+              title={SET_HELP[itemSet.id]}
+              className={`mt-1 inline-flex cursor-help rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                itemSet.id === 'fire'
+                  ? 'border-orange-400/50 bg-orange-500/10 text-orange-400'
+                  : 'border-blue-400/50 bg-blue-500/10 text-blue-400'
+              }`}
+            >
+              {itemSet.icon} {itemSet.name} set
+            </span>
+          )}
         </div>
       </div>
       <ul className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
@@ -37,4 +51,4 @@ export function ItemCard({ item, children }: ItemCardProps) {
 }
 
 /** Hover hint styling for texts that have an explanatory tooltip. */
-const HELP = "cursor-help underline decoration-dotted decoration-muted/60 underline-offset-2";
+const HELP = 'cursor-help underline decoration-dotted decoration-muted/60 underline-offset-2';
