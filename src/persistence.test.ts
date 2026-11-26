@@ -65,6 +65,21 @@ function change(save: SavedGameV1, path: string, value: unknown) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('B6 versioned serialization', () => {
+  it('validates live and JSON-restored fighters with omitted optional set IDs', () => {
+    const game = battling();
+    game.battle!.player.items[0].setId = undefined;
+    const save = envelope(game);
+    expect(validateSavedGame(save).status).toBe('valid');
+    const json = JSON.stringify(save);
+    expect(deserializeGame(json).status).toBe('loaded');
+  });
+
+  it('still rejects a defined forged set ID after JSON serialization', () => {
+    const save = envelope(battling());
+    const parsed = JSON.parse(JSON.stringify(save));
+    parsed.game.battle.player.items[0].setId = 'forged-set';
+    expect(validateSavedGame(parsed).status).toBe('invalid');
+  });
   it('writes a stable key and explicit schema and rules versions', () => {
     expect(SAVE_KEY).toBe('backpack-brawl.saved-game');
     expect(JSON.parse(serializeGame(fresh()))).toEqual(envelope());

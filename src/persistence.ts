@@ -52,8 +52,10 @@ function equal(a: unknown, b: unknown): boolean {
     return a.length === b.length && a.every((value, index) => equal(value, b[index]));
   }
   if (!record(a) || !record(b)) return false;
-  const keys = Object.keys(a);
-  return keys.length === Object.keys(b).length
+  // JSON omits undefined object properties (for example optional fighter setId).
+  // Compare the persisted representation while still checking every defined field.
+  const keys = Object.keys(a).filter((key) => a[key] !== undefined);
+  return keys.length === Object.keys(b).filter((key) => b[key] !== undefined).length
     && keys.every((key) => Object.hasOwn(b, key) && equal(a[key], b[key]));
 }
 
