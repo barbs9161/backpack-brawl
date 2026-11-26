@@ -44,7 +44,7 @@ export const OPPONENTS = [
     name: 'Ash Golem',
     icon: '🗿',
     hp: 56,
-    items: ['iron-cleaver', 'hunting-bow', 'spiked-shield', 'serpent-fang', 'oak-buckler'],
+    items: ['flame-dagger', 'ember-staff', 'spiked-shield', 'serpent-fang', 'healing-herb'],
   },
   {
     id: 'hollow-king',
@@ -52,8 +52,8 @@ export const OPPONENTS = [
     icon: '👑',
     hp: 64,
     items: [
-      'iron-cleaver',
-      'hunting-bow',
+      'ember-staff',
+      'dragon-fang',
       'venom-flask',
       'spiked-shield',
       'oak-buckler',

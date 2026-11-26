@@ -1,15 +1,17 @@
 import { TICK_SECONDS } from '../battle';
 import { describeEffects, getItem } from '../items';
-import { BACKPACK_COLS } from '../shop';
+import { BACKPACK_COLS, itemIdsOf } from '../shop';
+import { getActiveSets, ITEM_SETS } from '../sets';
 import type { Backpack as BackpackSlots, ItemDef } from '../types';
-import { EFFECT_HELP } from '../rules';
+import { EFFECT_HELP, SET_HELP } from '../rules';
 
-/** Hover text for a backpack slot: name, effects and cooldown. */
+/** Hover text for a backpack slot: name, effects, cooldown and set. */
 const tooltip = (item: ItemDef) =>
   [
     item.name,
     ...describeEffects(item.effects).map(({ effect, label }) => `${label}\n${EFFECT_HELP[effect]}`),
     `⏱️ every ${item.cooldown * TICK_SECONDS}s`,
+    ...(item.setId ? [SET_HELP[item.setId]] : []),
   ].join('\n');
 
 export function Backpack({
@@ -25,6 +27,8 @@ export function Backpack({
   onSelect?: (slotIndex: number | null) => void;
   onMove?: (fromIndex: number, toIndex: number) => void;
 }) {
+  const itemIds = itemIdsOf(backpack);
+  const activeSets = getActiveSets(itemIds);
   function handleSlotClick(slotIndex: number) {
     if (!onSelect) return; // If no onSelect callback is provided, do nothing. If it was provided by the parent component.
     // If no item is selected, select an occupied slot.
@@ -93,6 +97,15 @@ export function Backpack({
                     {item.icon}
                   </span>
                   <span className="text-center text-xs leading-tight">{item.name}</span>
+                  {item.setId && (
+                    <span
+                      className={`text-center text-xs font-semibold ${
+                        item.setId === 'fire' ? 'text-orange-400' : 'text-blue-400'
+                      }`}
+                    >
+                      {ITEM_SETS[item.setId].icon} {ITEM_SETS[item.setId].name}
+                    </span>
+                  )}
                   {onSelect && (
                     <button
                       type="button"
@@ -119,6 +132,46 @@ export function Backpack({
           );
         })}
       </ul>
+
+      <div className="mt-4 border-t border-panel-edge pt-3">
+        <h3 className="mb-2 font-display font-bold">Set bonuses</h3>
+
+        {Object.values(ITEM_SETS).map((set) => {
+          const count = [...new Set(itemIds)].filter((id) => getItem(id).setId === set.id).length;
+
+          const isActive = activeSets.includes(set.id);
+
+          return (
+            <div
+              key={set.id}
+              className={`mb-2 rounded-md border p-2 ${
+                isActive ? 'border-green-400/50 bg-green-500/10' : 'border-panel-edge bg-ink/40'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className={`font-semibold ${
+                    set.id === 'fire' ? 'text-orange-400' : 'text-blue-400'
+                  }`}
+                >
+                  {set.icon} {set.name} ({count}/{set.requiredItems} required)
+                </span>
+
+                <span className={`text-xs ${isActive ? 'text-green-400' : 'text-muted'}`}>
+                  {isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+
+              <p className="mt-1 text-xs text-muted">
+                {describeEffects(set.bonus)
+                  .map(({ label }) => label)
+                  .join(', ')}{' '}
+                per set item activation
+              </p>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

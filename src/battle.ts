@@ -10,6 +10,7 @@ import type {
   Opponent,
   Side,
 } from './types';
+import { getActiveSets, ITEM_SETS } from './sets';
 
 /** Seconds per battle tick. */
 export const TICK_SECONDS = 0.5;
@@ -20,9 +21,16 @@ export const HERO_BASE_HP = 40;
 export const POISON_TICK_INTERVAL = 2;
 /** HP damage caused by each poison stack. */
 export const POISON_DAMAGE_PER_STACK = 1;
+/** Number of battle ticks between burn damage events. */
+export const BURN_TICK_INTERVAL = 1;
+/** Damage caused by each burn stack. */
+export const BURN_DAMAGE_PER_STACK = 2;
+/** Number of burn stacks removed after each burn tick. */
+export const BURN_DECAY_PER_TICK = 1;
 
 /** Turns a list of item ids into a fighter with the catalog values of each item. */
 export function buildFighter(itemIds: string[], baseHp: number, name = 'Fighter'): Fighter {
+  const activeSets = getActiveSets(itemIds);
   const items: FighterItem[] = itemIds.map((id) => {
     const def = getItem(id);
     return {
@@ -31,9 +39,10 @@ export function buildFighter(itemIds: string[], baseHp: number, name = 'Fighter'
       icon: def.icon,
       cooldown: def.cooldown,
       effects: { ...def.effects },
+      setId: def.setId,
     };
   });
-  return { name, maxHp: baseHp, items };
+  return { name, maxHp: baseHp, items, activeSets };
 }
 
 /** The player's fighter: every backpack item and the hero's base HP. */
@@ -50,6 +59,7 @@ interface FighterState {
   hp: number;
   block: number;
   poison: number;
+  burn: number;
   /** Ticks each item has charged towards its cooldown. */
   charge: number[];
 }
@@ -61,6 +71,7 @@ const snapshot = (s: FighterState): FighterSnapshot => ({
   maxHp: s.fighter.maxHp,
   block: s.block,
   poison: s.poison,
+  burn: s.burn,
 });
 
 const isDown = (s: FighterState) => s.hp <= 0;
@@ -74,7 +85,9 @@ const isDown = (s: FighterState) => s.hp <= 0;
  * 2. Fired items resolve (player first, then opponent). Both sides fire "simultaneously":
  *    which items fire is decided before any effect is applied.
  * 3. Every POISON_TICK_INTERVAL ticks, poison deals damage directly to HP.
- * After step 3 the battle ends if someone is down; if both are down, the player loses.
+ * 4. Every BURN_TICK_INTERVAL ticks, burn deals damage,
+ *    with block absorbing damage first, then burn stacks decay.
+ * After step 4 the battle ends if someone is down; if both are down, the player loses.
  * After `MAX_TICKS` the higher HP percentage wins; a tie is a player loss.
  */
 export function simulateBattle(player: Fighter, opponent: Fighter): BattleResult {
@@ -115,6 +128,12 @@ export function simulateBattle(player: Fighter, opponent: Fighter): BattleResult
       }
     }
 
+    if (tick % BURN_TICK_INTERVAL === 0) {
+      for (const side of ['player', 'opponent'] as const) {
+        applyBurnTick(state[side], side, emit);
+      }
+    }
+
     winner = knockoutWinner();
 
     frames.push({
@@ -136,6 +155,7 @@ function initState(fighter: Fighter): FighterState {
     hp: fighter.maxHp,
     block: 0,
     poison: 0,
+    burn: 0,
     charge: fighter.items.map(() => 0),
   };
 }
@@ -160,9 +180,15 @@ function resolveItem(
   side: Side,
   emit: (event: Omit<BattleEvent, 'tick'>) => void,
 ) {
-  const { damage, block, poison, heal } = item.effects;
+  const { damage, block, poison, heal, burn } = item.effects;
   const base = { source: side, itemId: item.itemId };
   const enemySide = other(side);
+  const setBonus =
+    item.setId && self.fighter.activeSets.includes(item.setId)
+      ? ITEM_SETS[item.setId].bonus
+      : undefined;
+  const totalBurn = (burn ?? 0) + (setBonus?.burn ?? 0);
+  const totalBlock = (block ?? 0) + (setBonus?.block ?? 0);
 
   if (damage) {
     const absorbed = Math.min(enemy.block, damage);
@@ -177,14 +203,17 @@ function resolveItem(
       message: `${item.name} hits ${enemy.fighter.name} for ${damage}${note}`,
     });
   }
-  if (block) {
-    self.block += block;
+  if (totalBlock > 0) {
+    self.block += totalBlock;
+
     emit({
       ...base,
       target: side,
       kind: 'block',
-      amount: block,
-      message: `${item.name} grants ${self.fighter.name} ${block} block`,
+      amount: totalBlock,
+      message: `${item.name} grants ${self.fighter.name} ${totalBlock} block${
+        setBonus?.block ? ' (Guardian set bonus)' : ''
+      }`,
     });
   }
   if (poison) {
@@ -197,11 +226,21 @@ function resolveItem(
       message: `${item.name} applies ${poison} poison to ${enemy.fighter.name}`,
     });
   }
+  if (totalBurn > 0) {
+    enemy.burn += totalBurn;
+    emit({
+      ...base,
+      target: enemySide,
+      kind: 'burn',
+      amount: totalBurn,
+      message: `${item.name} applies ${totalBurn} burn to ${enemy.fighter.name}${
+        setBonus?.burn ? ' (Fire set bonus)' : ''
+      }`,
+    });
+  }
   if (heal) {
     const healed = Math.min(heal, self.fighter.maxHp - self.hp);
-
     self.hp += healed;
-
     emit({
       ...base,
       target: side,
@@ -227,6 +266,28 @@ function applyPoisonTick(
     kind: 'poisonTick',
     amount: damage,
     message: `${self.fighter.name} takes ${damage} poison damage`,
+  });
+}
+
+/** Applies periodic burn damage, with block absorbing damage first. */
+function applyBurnTick(
+  self: FighterState,
+  side: Side,
+  emit: (event: Omit<BattleEvent, 'tick'>) => void,
+) {
+  if (self.burn <= 0) return;
+  const damage = self.burn * BURN_DAMAGE_PER_STACK;
+  const absorbed = Math.min(self.block, damage);
+  self.block -= absorbed;
+  self.hp -= damage - absorbed;
+  self.burn = Math.max(0, self.burn - BURN_DECAY_PER_TICK);
+  const note = absorbed > 0 ? ` (${absorbed} blocked)` : '';
+  emit({
+    source: other(side),
+    target: side,
+    kind: 'burnTick',
+    amount: damage,
+    message: `${self.fighter.name} takes ${damage} burn damage${note} (${self.burn} burn remaining)`,
   });
 }
 

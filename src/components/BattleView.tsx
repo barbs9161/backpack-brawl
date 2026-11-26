@@ -1,6 +1,7 @@
 import { TICK_SECONDS, MAX_TICKS } from '../battle';
 import { describeEffects, getItem } from '../items';
-import { EFFECT_HELP, STATUS_HELP } from '../rules';
+import { EFFECT_HELP, STATUS_HELP, SET_HELP } from '../rules';
+import { ITEM_SETS } from '../sets';
 import type {
   BattleEvent,
   BattleEventKind,
@@ -121,6 +122,8 @@ const EVENT_COLOUR: Partial<Record<BattleEventKind, string>> = {
   poison: 'text-purple-400',
   poisonTick: 'text-purple-400',
   heal: 'text-green-400',
+  burn: 'text-orange-400',
+  burnTick: 'text-orange-400',
 };
 
 function LogLine({ event }: { event: BattleEvent }) {
@@ -128,7 +131,9 @@ function LogLine({ event }: { event: BattleEvent }) {
     ? getItem(event.itemId).icon
     : event.kind === 'poisonTick'
       ? '☠️'
-      : '⚔️';
+      : event.kind === 'burnTick'
+        ? '🔥'
+        : '⚔️';
 
   const byPlayer = event.source === 'player';
   const text = (
@@ -159,7 +164,7 @@ interface FighterPanelProps {
 }
 
 function FighterPanel({ side, icon, fighter, snapshot }: FighterPanelProps) {
-  const { hp, maxHp, block, poison } = snapshot;
+  const { hp, maxHp, block, poison, burn } = snapshot;
   const knockedOut = hp <= 0;
 
   return (
@@ -198,6 +203,14 @@ function FighterPanel({ side, icon, fighter, snapshot }: FighterPanelProps) {
         <span className="font-mono">☠️ {poison}</span>
       </div>
 
+      <div
+        className="flex cursor-help justify-between text-xs text-orange-400"
+        title={STATUS_HELP.burn}
+      >
+        <span>Burn</span>
+        <span className="font-mono">🔥 {burn}</span>
+      </div>
+
       <ul className="flex flex-wrap gap-1" aria-label="Items">
         {fighter.items.map((item, index) => (
           <li
@@ -208,13 +221,60 @@ function FighterPanel({ side, icon, fighter, snapshot }: FighterPanelProps) {
                 ({ effect, label }) => `${label}\n${EFFECT_HELP[effect]}`,
               ),
               `⏱️ every ${item.cooldown * TICK_SECONDS}s`,
+              ...(item.setId ? [SET_HELP[item.setId]] : []),
             ].join('\n')}
-            className="cursor-help rounded bg-ink/50 px-1.5 py-0.5 text-xl"
+            className="flex cursor-help flex-col items-center rounded bg-ink/50 px-1.5 py-0.5 text-xl"
           >
             {item.icon}
+
+            {item.setId && (
+              <span
+                className={`text-xs font-semibold ${
+                  item.setId === 'fire' ? 'text-orange-400' : 'text-blue-400'
+                }`}
+              >
+                {ITEM_SETS[item.setId].icon} {ITEM_SETS[item.setId].name}
+              </span>
+            )}
           </li>
         ))}
       </ul>
+
+      <div className="border-t border-panel-edge pt-2">
+        <h4 className="mb-1 text-xs font-bold text-muted">Active set bonuses</h4>
+
+        {fighter.activeSets.length === 0 ? (
+          <p className="text-xs text-muted">None</p>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {fighter.activeSets.map((setId) => {
+              const set = ITEM_SETS[setId];
+
+              return (
+                <div
+                  key={setId}
+                  className={`rounded border p-2 text-xs ${
+                    setId === 'fire'
+                      ? 'border-orange-400/50 bg-orange-500/10 text-orange-400'
+                      : 'border-blue-400/50 bg-blue-500/10 text-blue-400'
+                  }`}
+                >
+                  <p className="font-semibold">
+                    {set.icon} {set.name} — Active
+                  </p>
+
+                  <p>
+                    {describeEffects(set.bonus)
+                      .map(({ label }) => label)
+                      .join(', ')}{' '}
+                    per set item activation
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </article>
   );
 }
