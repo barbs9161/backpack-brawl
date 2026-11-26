@@ -1,14 +1,30 @@
 import { createContext, useContext } from "react";
-import type { GameState } from "../types";
+import type { GameState, LeaderboardSubmission } from "../types";
+import type { LoadGameResult } from "../persistence";
+
+export interface PersistenceState {
+  loadStatus: LoadGameResult['status'];
+  notices: string[];
+  error: string | null;
+  /** Synchronous guards enforce this even before React commits a render. */
+  blocked: boolean;
+  interruptedSubmission: LeaderboardSubmission | null;
+}
 
 export interface GameContextValue {
   /** The current run, or `null` before the first run was started. */
   game: GameState | null;
-  /** Throws away the current run (if any) and starts a fresh one. */
-  startNewRun: () => void;
+  /** Replaces the current run only after its fresh snapshot is saved. */
+  startNewRun: () => boolean;
   findOpponent: () => Promise<void>;
-  /** Applies a pure transition from game.ts to the current run; ignored without a run. */
-  update: (transition: (game: GameState) => GameState) => void;
+  /** True only when a changed state was saved and admitted. Check before external effects. */
+  update: (transition: (game: GameState) => GameState, options?: {
+    /** Only a confirmed HTTP validation rejection can release uncertain intent. */
+    submissionRejected?: boolean;
+  }) => boolean;
+  persistence: PersistenceState;
+  /** Retries the retained candidate, or retries an unavailable initial storage read. */
+  retrySave: () => boolean;
 }
 
 export const GameContext = createContext<GameContextValue | null>(null);

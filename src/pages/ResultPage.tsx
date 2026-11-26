@@ -9,24 +9,28 @@ import { beginLeaderboardSubmission, leaderboardSubmissionFailed, leaderboardSub
 import { useActiveGame } from "../state/GameContext";
 
 export function ResultPage() {
-  const { game, startNewRun, update } = useActiveGame();
+  const { game, startNewRun, update, persistence } = useActiveGame();
   const pendingRun = useRef<string | null>(null);
   const outcome = runOutcome(game.run);
+  const intent = persistence.interruptedSubmission;
   if (!outcome) return null;
 
   async function handleSubmit() {
     const { runId, run, leaderboardSubmission } = game;
-    if (pendingRun.current === runId || !leaderboardSubmission.playerName.trim()
+    if (persistence.blocked || pendingRun.current === runId || !(intent?.playerName ?? leaderboardSubmission.playerName).trim()
       || beginLeaderboardSubmission(game, runId) === game) return;
-    const payload = { runId, playerName: leaderboardSubmission.playerName, wins: run.wins, lives: run.lives, rounds: run.round };
+    const payload = intent ?? { runId, playerName: leaderboardSubmission.playerName, wins: run.wins, lives: run.lives, rounds: run.round };
+    // The provider must durably admit intent before an external POST is allowed.
+    if (!update((current) => current.runId !== payload.runId ? current
+      : beginLeaderboardSubmission(setLeaderboardName(current, payload.playerName), payload.runId))) return;
     pendingRun.current = runId;
-    update((current) => beginLeaderboardSubmission(current, runId));
     try {
       const entry = await submitLeaderboardRun(payload);
       update((current) => leaderboardSubmissionSucceeded(current, runId, entry));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Submission failed. Please try again.";
-      update((current) => leaderboardSubmissionFailed(current, runId, message));
+      const submissionRejected = error instanceof Error && 'status' in error && error.status === 400;
+      update((current) => leaderboardSubmissionFailed(current, runId, message), { submissionRejected });
     } finally {
       if (pendingRun.current === runId) pendingRun.current = null;
     }
@@ -37,12 +41,15 @@ export function ResultPage() {
     <>
       <RunHeader run={game.run} />
       <RunOver run={game.run} outcome={outcome} onNewRun={startNewRun} />
+      <p className="text-center text-sm text-muted">Starting a new run replaces this saved result, including any pending submission.</p>
       {game.phase === "finished" && (
         <LeaderboardForm
-          playerName={game.leaderboardSubmission.playerName}
+          playerName={intent?.playerName ?? game.leaderboardSubmission.playerName}
           status={game.leaderboardSubmission.status}
           error={game.leaderboardSubmission.error}
-          onNameChange={(name) => update((current) => setLeaderboardName(current, name))}
+          uncertain={intent !== null && game.leaderboardSubmission.status !== 'submitting'}
+          blocked={persistence.blocked}
+          onNameChange={(name) => { if (!intent && !persistence.blocked) update((current) => setLeaderboardName(current, name)); }}
           onSubmit={handleSubmit}
         />
       )}

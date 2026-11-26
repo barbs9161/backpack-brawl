@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchLeaderboard } from "../api";
 import type { LeaderboardEntry } from "../types";
+import { useGame } from "../state/GameContext";
 
 type LeaderboardState =
   | { status: "loading" }
@@ -8,10 +9,12 @@ type LeaderboardState =
   | { status: "error"; message: string };
 
 export function HallOfFamePage() {
+  const { persistence } = useGame();
   const [state, setState] = useState<LeaderboardState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    if (persistence.blocked) return;
     const controller = new AbortController();
     fetchLeaderboard(controller.signal).then(
       (entries) => {
@@ -24,7 +27,7 @@ export function HallOfFamePage() {
       },
     );
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, persistence.blocked]);
 
   function handleRetry() {
     setState({ status: "loading" });

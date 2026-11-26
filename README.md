@@ -77,7 +77,49 @@ Find opponent shows a searching message and locks the fight button and shop acti
 
 Opponent responses are checked for valid fields, catalog item IDs, and the requested round. HTTP errors, network failures, malformed responses, and an eight-second request timeout return to the same usable shop with readable feedback. Retry is explicit, keeps the same run ID, and creates a new search ID. Failure preserves gold, backpack, round, lives, wins, RNG seed, offers, and leaderboard submission state; it does not grant a free shop roll. Starting a new run or unmounting the provider cancels obsolete work; navigating between pages does not cancel a valid search.
 
-The qualitative goals are single-request reliability, recovery within the request timeout, and understandable retry feedback. Provider ownership adds a small amount of coordination but survives route changes; request identities protect correctness even when cancellation arrives late. No state library, backend contract change, or automatic retry is needed. Controllers and timers are transient and are not part of saved game state; B6 remains separate. Evaluate with deferred-response race tests, fake-timer timeout/replay tests, API response checks, B1/B7 regressions, and browser checks for double clicks, offline/retry, navigation, and new-run cancellation.
+The qualitative goals are single-request reliability, recovery within the request timeout, and understandable retry feedback. Provider ownership adds a small amount of coordination but survives route changes; request identities protect correctness even when cancellation arrives late. No state library, backend contract change, or automatic retry is needed. Controllers and timers remain transient; B6 persists meaningful game state and normalizes interrupted searches without issuing another request. Evaluate with deferred-response race tests, fake-timer timeout/replay tests, API response checks, B1/B7 regressions, and browser checks for double clicks, offline/retry, navigation, and new-run cancellation.
+
+## B6 — Save and resume
+
+The run saves automatically in this browser. The start page offers **Continue**, which uses the run's phase to return to the shop, battle replay, or result screen. **New run** replaces the saved run, including an unsubmitted result or interrupted submission; it does not delete Hall of Fame entries on the server.
+
+### Saved properties and format
+
+`src/persistence.ts` separates pure serialization, runtime validation, and refresh normalization from guarded storage access. The localStorage key is **`backpack-brawl.saved-game`**. Its JSON envelope has **`version: 1`** and **`rulesVersion: 1`**, plus the game snapshot. Schema changes require a save-version decision; incompatible catalog, economy, combat, or opponent changes require a rules-version decision. Unsupported versions are rejected; there is no implicit migration.
+
+The snapshot preserves the run UUID and phase; round, gold, lives, wins, RNG seed, current shop offers and sold markers; backpack slots, item IDs, item UIDs and the next UID counter; search identity; battle opponent, fighters, deterministic result, replay frames/events and current frame; and Hall of Fame name, status and accepted entry. Controllers, promises, timers, selected-item highlights and the Hall of Fame list are transient.
+
+`GameProvider` loads and validates synchronously during initialization, before route guards render, and initializes React state and its synchronous mirror consistently. Changed states pass through a synchronous save before they are published. Buying, selling, rerolling, moving/swapping backpack items, replay progression, result settlement, submissions and new-run replacement use this same path. No-op actions do not rewrite storage.
+
+### Refresh and recovery policies
+
+- **Shop:** restore the exact offers, sold markers, resources, backpack and next-roll seed. Refresh does not roll another shop.
+- **Opponent search:** return to the unchanged shop with an interruption notice. Retry is explicit and creates a fresh search identity. The current API has one fixed opponent per round, so retry cannot select another opponent. Random matchmaking would require a different reservation/idempotency contract.
+- **Battle replay:** resume the same opponent and frame. The deterministic result is validated against a recomputed simulation. An active replay is unscored; a completed replay already contains its win/loss and any next-round reward and shop. Refresh never settles it again. Continue leaves a completed replay normally.
+- **Finished run:** restore the result screen, draft name and submission state. A successful submission stays locked and never automatically POSTs again.
+- **Interrupted or uncertain submission:** preserve the exact original run ID, name and statistics; lock the name and require explicit retry. The durable snapshot keeps pending intent until success or a confirmed HTTP 400 validation rejection. Identical retries use the existing server deduplication contract. A confirmed validation rejection unlocks the name for correction. A network error, invalid success response, server error or conflict does not justify changing uncertain intent.
+- **Missing save:** show the normal start page. **Malformed, incompatible or impossible save:** announce the problem and allow a new run. Rejected data is not partially repaired, deleted or overwritten during loading. A successfully saved new run replaces it.
+- **Storage read failure:** block starting or changing a run to avoid overwriting unread data. **Retry storage access** attempts the read again.
+- **Storage write failure:** retain the exact candidate in memory, keep the last saved state visible, abort obsolete opponent work, and block further gameplay and mutation requests. The shared notice remains available outside disabled page controls. **Retry save** saves the retained candidate without rerunning its transition. Failed search/submission admission recovers to a retryable state and does not automatically issue HTTP requests. Keep the page open while recovering: a pending candidate cannot survive closing or refreshing when storage refuses writes.
+
+Validation checks safe integer/range constraints, UUIDs, catalog IDs, shop/backpack sizes, unique item UIDs, allocation counters, plausible resource limits, phase/search consistency, terminal scores, canonical battle data and accepted-entry consistency. JSON input is bounded to 262,144 characters. These checks detect invalid or implausible data; browser storage is not authoritative proof that a run was played.
+
+### Compatibility, limitations and evaluation
+
+B1 actions retain their atomic economy and phase guards. B2 backpack positions and UIDs survive refresh. B5 retains provider-owned requests, aborts, current run/round/search checks, explicit retries, and duplicate-response guards. B7 retains stable run IDs, original retry payloads, late-response guards and server-side deduplication. No backend API contract or dependency was added.
+
+localStorage is synchronous and specific to the browser profile and origin, including port. Quotas, browser settings, private browsing, eviction or clearing site data can remove saves or prevent access. Saves do not transfer between devices, browsers or origins. Use **one game tab**: there is no multi-tab locking, storage-event synchronization or conflict resolution; simultaneous tabs may overwrite each other. Hall of Fame entries and server duplicate records remain in memory and disappear when Express restarts. A locally saved success remains locked even if the server has since restarted.
+
+The qualitative goals are refresh continuity, exactly-once result application, understandable accessible recovery, and keeping game rules independent of storage. The trade-off is synchronous validation/storage work for each meaningful transition, including replay frames; compact replay formats and multi-tab coordination are outside this implementation. Evaluate with pure validation tests, provider unmount/remount tests against shared storage, Strict Mode checks, deferred-response races, UI recovery tests, and the complete B1/B5/B7 regression suite. The application exposes these policies in **Save and refresh policy** above every page.
+
+### Manual browser checks
+
+1. Run `npm run dev` and open `http://localhost:5174`. Start a run, buy/sell items, move an item and pay for a reroll. Refresh and verify the exact offers, sold markers, backpack positions and gold. Open the start page and use Continue.
+2. Refresh while searching. Verify the interrupted-search notice, unchanged shop and explicit Find opponent retry. Refresh during battle, then after the last frame but before Continue. Verify the same opponent and replay progress, and a single win/loss and round reward.
+3. In DevTools Application/Storage, replace `backpack-brawl.saved-game` with malformed JSON or change its version. Reload: verify an accessible error, no Continue button and a working New run replacement.
+4. Temporarily make `Storage.prototype.setItem` throw in DevTools, keeping a reference to the original function. Trigger a reroll: verify disabled game controls and an enabled Retry save. Restore the function and retry; only one reroll should be charged. Similarly make `getItem` throw before reload to check Retry storage access, then restore it and recover.
+5. Finish a run, enter a name and submit. Use network throttling to refresh while submission is pending. Verify no automatic POST, a locked original name and explicit identical retry. After success, refresh again: the form stays locked and the Network panel shows no additional POST. The Hall of Fame should contain one entry.
+6. Return to Start and choose New run. Verify the replacement warning and a fresh run after refresh. Check that keyboard navigation reaches policy details and recovery buttons, and that feedback uses status/alert announcements.
 
 ## B7 — Hall of Fame
 
@@ -89,7 +131,7 @@ After a victory or defeat, enter a player name on the result screen and submit t
 
 **Validation.** The server requires a valid UUID, a trimmed name of 1–30 Unicode code points without control characters, and integer statistics. A victory has exactly 5 wins and 1–3 lives; a defeat has 0–4 wins and no lives. Finished runs must satisfy `rounds === wins + (3 - lives)`, with 3–7 rounds. The server derives outcome and timestamp. This checks plausibility rather than proving that a run was played; names render as React text.
 
-**Idempotency and lifetime.** The Map is keyed by normalized run UUID. A new entry returns HTTP 201; an identical normalized retry returns HTTP 200 with the original entry and timestamp; different data for that UUID returns HTTP 409. Pending/successful submissions are blocked in the UI, and late responses cannot update another run. After an uncertain network failure, retry with the same name and run ID: the server may already have accepted it. Restarting Express clears both entries and duplicate records. Browser refresh also loses the current run and submission state; B6 save/resume is not implemented.
+**Idempotency and lifetime.** The Map is keyed by normalized run UUID. A new entry returns HTTP 201; an identical normalized retry returns HTTP 200 with the original entry and timestamp; different data for that UUID returns HTTP 409. Pending/successful submissions are blocked in the UI, and late responses cannot update another run. B6 persists the run and submission intent across browser refresh. Uncertain submissions retry explicitly with their exact original payload; accepted submissions remain locked. Restarting Express clears both entries and duplicate records.
 
 ### Qualitative goals and trade-offs
 

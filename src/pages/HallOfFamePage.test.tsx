@@ -1,18 +1,22 @@
 // @vitest-environment jsdom
-import { StrictMode } from 'react';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { StrictMode, type ReactNode } from 'react';
+import { act, cleanup, fireEvent, render as renderUI, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { fetchLeaderboard } from '../api';
 import { newGame, routeForGame } from '../game';
 import type { LeaderboardEntry, Phase } from '../types';
 import { HallOfFamePage } from './HallOfFamePage';
+import { GameProvider } from '../state/GameProvider';
+import { SAVE_KEY } from '../persistence';
+
+function render(ui: ReactNode) { return renderUI(<GameProvider>{ui}</GameProvider>); }
 
 vi.mock('../api', () => ({ fetchLeaderboard: vi.fn() }));
 const entries: LeaderboardEntry[] = [
   { runId: '00000000-0000-4000-8000-000000000002', playerName: 'Zoe', wins: 5, lives: 3, rounds: 5, outcome: 'victory', createdAt: '2026-11-22T08:00:00.000Z' },
   { runId: '00000000-0000-4000-8000-000000000001', playerName: 'Ada', wins: 4, lives: 0, rounds: 7, outcome: 'defeat', createdAt: '2026-11-22T08:00:00.000Z' },
 ];
-afterEach(() => { cleanup(); vi.resetAllMocks(); window.history.replaceState({}, '', '/'); });
+afterEach(() => { cleanup(); vi.resetAllMocks(); localStorage.removeItem(SAVE_KEY); window.history.replaceState({}, '', '/'); });
 
 it('shows loading and passes an active AbortSignal', () => {
   vi.mocked(fetchLeaderboard).mockReturnValue(new Promise(() => {}));
@@ -66,7 +70,7 @@ it.each(['success', 'failure'])('ignores obsolete %s even if the API ignores can
   let reject!: (error: Error) => void;
   vi.mocked(fetchLeaderboard).mockImplementationOnce(() => new Promise((done, fail) => { resolve = done; reject = fail; }))
     .mockResolvedValueOnce(entries);
-  render(<StrictMode><HallOfFamePage /></StrictMode>);
+  renderUI(<StrictMode><GameProvider><HallOfFamePage /></GameProvider></StrictMode>);
   await screen.findByRole('table');
   expect(vi.mocked(fetchLeaderboard).mock.calls[0][0]?.aborted).toBe(true);
   await act(async () => { if (result === 'success') resolve([]); else reject(new Error('Obsolete error')); });
